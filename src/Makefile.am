@@ -17,7 +17,7 @@ libgstsubsink_la_SOURCES = gstsubsink.c
 # add other _CFLAGS and _LIBS as needed
 
 libgstsubsink_la_CFLAGS = $(GST_CFLAGS)
-libgstsubsink_la_LIBADD = $(GST_LIBS) -lgstbase-0.10
+libgstsubsink_la_LIBADD = $(GST_LIBS) -lgstbase-$(GST_MAJORMINOR)
 libgstsubsink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 
 # headers we need but don't want installed
