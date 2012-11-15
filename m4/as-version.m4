@@ -29,24 +29,23 @@ dnl if you use acconfig.h
 AC_DEFUN([AS_VERSION],
 [
   PACKAGE=[$1]
-  [$2]_MAJOR=[$3]
-  [$2]_MINOR=[$4]
-  [$2]_MICRO=[$5]
-  NANO=[$6]
+  [$2]_MAJORMINOR=[$3]
+  [$2]_MICRO=[$4]
+  NANO=[$5]
   [$2]_NANO=$NANO
   if test "x$NANO" = "x" || test "x$NANO" = "x0";
   then
       AC_MSG_NOTICE(configuring [$1] for release)
-      VERSION=[$3].[$4].[$5]
+      VERSION=[$3].[$4]
       [$2]_RELEASE=1
       dnl execute action
-      ifelse([$7], , :, [$7])
+      ifelse([$6], , :, [$6])
   else
       AC_MSG_NOTICE(configuring [$1] for development with nano $NANO)
-      VERSION=[$3].[$4].[$5].$NANO
+      VERSION=[$3].[$4].$NANO
       [$2]_RELEASE=0.`date +%Y%m%d.%H%M%S`
       dnl execute action
-      ifelse([$8], , :, [$8])
+      ifelse([$7], , :, [$7])
   fi
 
   [$2]=$VERSION
@@ -55,8 +54,7 @@ AC_DEFUN([AS_VERSION],
   AC_DEFINE_UNQUOTED([$2]_RELEASE, "$[$2]_RELEASE", [Define the release version])
   AC_SUBST([$2]_RELEASE)
 
-  AC_SUBST([$2]_MAJOR)
-  AC_SUBST([$2]_MINOR)
+  AC_SUBST([$2]_MAJORMINOR)
   AC_SUBST([$2]_MICRO)
   AC_SUBST([$2]_NANO)
   AC_DEFINE_UNQUOTED(PACKAGE, "$PACKAGE", [Define the package name])
