@@ -27,6 +27,7 @@
 
 #include <string.h>
 
+#include "gstsubsink-marshal.h"
 #include "gstsubsink.h"
 
 struct _GstSubSinkPrivate
@@ -66,6 +67,11 @@ GST_STATIC_PAD_TEMPLATE("sink",
 static void gst_sub_sink_uri_handler_init(gpointer g_iface,
 		gpointer iface_data);
 
+#if GST_VERSION_MAJOR < 1
+static void gst_sub_sink_init(GstSubSink *subsink, GstSubSinkClass *klass);
+#else
+static void gst_sub_sink_init(GstSubSink *subsink);
+#endif
 static void gst_sub_sink_dispose(GObject *object);
 
 static void gst_sub_sink_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec);
@@ -76,10 +82,15 @@ static gboolean gst_sub_sink_stop(GstBaseSink *psink);
 static GstFlowReturn gst_sub_sink_render_common(GstBaseSink *psink, GstBuffer *buffer, gboolean is_list);
 static GstFlowReturn gst_sub_sink_render(GstBaseSink *psink, GstBuffer *buffer);
 static GstFlowReturn gst_sub_sink_render_list(GstBaseSink *psink, GstBufferList *list);
+#if GST_VERSION_MAJOR < 1
 static GstCaps *gst_sub_sink_getcaps(GstBaseSink *psink);
+#else
+static GstCaps *gst_sub_sink_getcaps(GstBaseSink *psink, GstCaps *filter);
+#endif
 
 static guint gst_sub_sink_signals[LAST_SIGNAL] = { 0 };
 
+#if GST_VERSION_MAJOR < 1
 static void _do_init(GType filesrc_type)
 {
 	static const GInterfaceInfo urihandler_info = 
@@ -90,8 +101,6 @@ static void _do_init(GType filesrc_type)
 	};
 	g_type_add_interface_static(filesrc_type, GST_TYPE_URI_HANDLER, &urihandler_info);
 }
-
-GST_BOILERPLATE_FULL(GstSubSink, gst_sub_sink, GstBaseSink, GST_TYPE_BASE_SINK, _do_init);
 
 static void gst_sub_sink_base_init(gpointer g_class)
 {
@@ -107,10 +116,29 @@ static void gst_sub_sink_base_init(gpointer g_class)
 			gst_static_pad_template_get(&gst_sub_sink_template));
 }
 
+GST_BOILERPLATE_FULL(GstSubSink, gst_sub_sink, GstBaseSink, GST_TYPE_BASE_SINK, _do_init);
+#else
+#define gst_sub_sink_parent_class parent_class
+G_DEFINE_TYPE_WITH_CODE(GstSubSink, gst_sub_sink, GST_TYPE_BASE_SINK, G_IMPLEMENT_INTERFACE(GST_TYPE_URI_HANDLER, gst_sub_sink_uri_handler_init));
+#endif
+
 static void gst_sub_sink_class_init(GstSubSinkClass * klass)
 {
 	GObjectClass *gobject_class =(GObjectClass *) klass;
 	GstBaseSinkClass *basesink_class =(GstBaseSinkClass *) klass;
+
+#if GST_VERSION_MAJOR >= 1
+	GstElementClass *element_class = (GstElementClass *)klass;
+
+	GST_DEBUG_CATEGORY_INIT(sub_sink_debug, "subsink", 0, "subsink element");
+
+	gst_element_class_set_static_metadata(element_class, "SubSink",
+			"Generic/Sink", "Allow the application to get access to raw subtitle data",
+			"PLi team");
+
+	gst_element_class_add_pad_template(element_class,
+			gst_static_pad_template_get(&gst_sub_sink_template));
+#endif
 
 	gobject_class->dispose = gst_sub_sink_dispose;
 
@@ -134,7 +162,7 @@ static void gst_sub_sink_class_init(GstSubSinkClass * klass)
 	gst_sub_sink_signals[SIGNAL_NEW_BUFFER] =
 			g_signal_new("new-buffer", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
 			G_STRUCT_OFFSET(GstSubSinkClass, new_buffer),
-			NULL, NULL, gst_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
+			NULL, NULL, gst_subsink_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
 
 	basesink_class->start = gst_sub_sink_start;
 	basesink_class->stop = gst_sub_sink_stop;
@@ -145,11 +173,13 @@ static void gst_sub_sink_class_init(GstSubSinkClass * klass)
 	g_type_class_add_private(klass, sizeof(GstSubSinkPrivate));
 }
 
+#if GST_VERSION_MAJOR < 1
 static void gst_sub_sink_init(GstSubSink *subsink, GstSubSinkClass *klass)
+#else
+static void gst_sub_sink_init(GstSubSink *subsink)
+#endif
 {
-	GstSubSinkPrivate *priv;
-
-	priv = subsink->priv =
+	subsink->priv =
 			G_TYPE_INSTANCE_GET_PRIVATE(subsink, GST_TYPE_SUB_SINK,
 			GstSubSinkPrivate);
 }
@@ -238,7 +268,6 @@ static gboolean gst_sub_sink_stop(GstBaseSink *psink)
 
 static GstFlowReturn gst_sub_sink_render_common(GstBaseSink *psink, GstBuffer *buffer, gboolean is_list)
 {
-	GstFlowReturn ret;
 	GstSubSink *subsink = GST_SUB_SINK_CAST(psink);
 	GstSubSinkPrivate *priv = subsink->priv;
 
@@ -252,7 +281,11 @@ static GstFlowReturn gst_sub_sink_render_common(GstBaseSink *psink, GstBuffer *b
 flushing:
 	{
 		GST_DEBUG_OBJECT(subsink, "we are flushing");
+#if GST_VERSION_MAJOR < 1
 		return GST_FLOW_WRONG_STATE;
+#else
+		return GST_FLOW_FLUSHING;
+#endif
 	}
 }
 
@@ -263,17 +296,20 @@ static GstFlowReturn gst_sub_sink_render(GstBaseSink *psink, GstBuffer *buffer)
 
 static GstFlowReturn gst_sub_sink_render_list(GstBaseSink *sink, GstBufferList *list)
 {
+#if GST_VERSION_MAJOR < 1
 	GstBufferListIterator *it;
-	GstFlowReturn flow;
-	GstSubSink *subsink;
 	GstBuffer *group;
-
-	subsink = GST_SUB_SINK_CAST(sink);
+#else
+	GstBuffer *buffer;
+	guint i, len;
+#endif
+	GstFlowReturn flow;
 
 	/* The application doesn't support buffer lists, extract individual buffers
 	* then and push them one-by-one */
 	GST_INFO_OBJECT(sink, "chaining each group in list as a merged buffer");
 
+#if GST_VERSION_MAJOR < 1
 	it = gst_buffer_list_iterate(list);
 
 	if (gst_buffer_list_iterator_next_group(it)) 
@@ -303,11 +339,28 @@ static GstFlowReturn gst_sub_sink_render_list(GstBaseSink *sink, GstBufferList *
 	}
 
 	gst_buffer_list_iterator_free(it);
+#else
+	len = gst_buffer_list_length(list);
+	flow = GST_FLOW_OK;
+	for (i = 0; i < len; i++)
+	{
+		buffer = gst_buffer_list_get(list, i);
+		flow = gst_sub_sink_render(sink, buffer);
+		if (flow != GST_FLOW_OK)
+		{
+			break;
+		}
+	}
+#endif
 
 	return flow;
 }
 
+#if GST_VERSION_MAJOR < 1
 static GstCaps *gst_sub_sink_getcaps(GstBaseSink *psink)
+#else
+static GstCaps *gst_sub_sink_getcaps(GstBaseSink *psink, GstCaps *filter)
+#endif
 {
 	GstCaps *caps;
 	GstSubSink *subsink = GST_SUB_SINK_CAST(psink);
@@ -315,7 +368,20 @@ static GstCaps *gst_sub_sink_getcaps(GstBaseSink *psink)
 
 	GST_OBJECT_LOCK(subsink);
 	if ((caps = priv->caps))
+	{
+#if GST_VERSION_MAJOR < 1
 		gst_caps_ref(caps);
+#else
+		if (filter)
+		{
+			caps = gst_caps_intersect_full(filter, caps, GST_CAPS_INTERSECT_FIRST);
+		}
+		else
+		{
+			gst_caps_ref(caps);
+		}
+#endif
+	}
 	GST_DEBUG_OBJECT(subsink, "got caps %" GST_PTR_FORMAT, caps);
 	GST_OBJECT_UNLOCK(subsink);
 
@@ -367,23 +433,40 @@ GstCaps *gst_sub_sink_get_caps(GstSubSink *subsink)
 
 /*** GSTURIHANDLER INTERFACE *************************************************/
 
+#if GST_VERSION_MAJOR < 1
 static GstURIType gst_sub_sink_uri_get_type(void)
+#else
+static GstURIType gst_sub_sink_uri_get_type(GType type)
+#endif
 {
 	return GST_URI_SINK;
 }
 
+#if GST_VERSION_MAJOR < 1
 static gchar **gst_sub_sink_uri_get_protocols(void)
 {
 	static gchar *protocols[] = {(char *) "subsink", NULL };
-
+#else
+static const gchar *const *gst_sub_sink_uri_get_protocols(GType type)
+{
+	static const gchar *protocols[] = {"subsink", NULL};
+#endif
 	return protocols;
 }
 
+#if GST_VERSION_MAJOR < 1
 static const gchar *gst_sub_sink_uri_get_uri(GstURIHandler *handler)
 {
 	return "subsink";
 }
+#else
+static gchar *gst_sub_sink_uri_get_uri(GstURIHandler *handler)
+{
+	return g_strdup("subsink");
+}
+#endif
 
+#if GST_VERSION_MAJOR < 1
 static gboolean gst_sub_sink_uri_set_uri(GstURIHandler *handler, const gchar *uri)
 {
 	gchar *protocol;
@@ -395,6 +478,13 @@ static gboolean gst_sub_sink_uri_set_uri(GstURIHandler *handler, const gchar *ur
 
 	return ret;
 }
+#else
+static gboolean gst_sub_sink_uri_set_uri(GstURIHandler *handler, const gchar *uri, GError **error)
+{
+	/* GstURIHandler checks the protocol for us */
+	return TRUE;
+}
+#endif
 
 static void gst_sub_sink_uri_handler_init(gpointer g_iface, gpointer iface_data)
 {
@@ -416,6 +506,10 @@ static gboolean plugin_init(GstPlugin *plugin)
 
 GST_PLUGIN_DEFINE(GST_VERSION_MAJOR,
 		GST_VERSION_MINOR,
+#if GST_VERSION_MAJOR < 1
 		"subsink",
+#else
+		subsink,
+#endif
 		"delivers subtitle buffers to the application",
 		plugin_init, VERSION, "LGPL", "GStreamer", "http://gstreamer.net/");
