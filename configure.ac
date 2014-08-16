@@ -1,4 +1,4 @@
-AC_INIT
+AC_INIT([gst-plugin-subsink],[0.10])
 
 dnl versions of gstreamer and plugins-base
 AC_ARG_WITH(gstversion,
@@ -19,7 +19,7 @@ AS_VERSION(gst-plugin, GST_PLUGIN_VERSION, $GST_MAJORMINOR, 0, 1, GST_PLUGIN_CVS
 dnl AM_MAINTAINER_MODE provides the option to enable maintainer mode
 AM_MAINTAINER_MODE
 
-AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
+AM_INIT_AUTOMAKE([foreign])
 
 dnl make aclocal work in maintainer mode
 AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
